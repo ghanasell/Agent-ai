@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.text.BasicTextField
+import com.example.data.db.ProjectFile
 import com.example.data.db.ChatMessageEntity
 import com.example.data.db.ChatSession
 import com.example.data.db.SavedSnippet
@@ -205,6 +207,20 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
                     ),
                     modifier = Modifier.testTag("tab_snippets")
                 )
+                NavigationBarItem(
+                    selected = selectedTab == AppTab.TOOLS,
+                    onClick = { viewModel.selectTab(AppTab.TOOLS) },
+                    icon = { Icon(Icons.Default.Build, contentDescription = "Workspace") },
+                    label = { Text("Workspace") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = NeonCyan,
+                        indicatorColor = NeonCyan,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    ),
+                    modifier = Modifier.testTag("tab_tools")
+                )
             }
         },
         contentWindowInsets = WindowInsets.safeDrawing
@@ -219,6 +235,7 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
                 AppTab.CHAT -> ChatScreen(viewModel = viewModel)
                 AppTab.DEBUGGER -> DebuggerScreen(viewModel = viewModel)
                 AppTab.SNIPPETS -> SnippetsScreen(viewModel = viewModel)
+                AppTab.TOOLS -> ToolsScreen(viewModel = viewModel)
                 AppTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
             }
         }
@@ -1353,5 +1370,898 @@ fun SettingsScreen(viewModel: AssistantViewModel) {
                 )
             }
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// WORKSPACE, WEB SEARCH, AND GITHUB TOOLS SCREEN
+// -----------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ToolsScreen(viewModel: AssistantViewModel) {
+    val context = LocalContext.current
+    val currentProject by viewModel.currentProject.collectAsStateWithLifecycle()
+    val allProjects by viewModel.allProjects.collectAsStateWithLifecycle()
+    val projectFiles by viewModel.projectFiles.collectAsStateWithLifecycle()
+    val toolLogs by viewModel.toolLogs.collectAsStateWithLifecycle()
+    val webSearchResults by viewModel.webSearchResults.collectAsStateWithLifecycle()
+    val isSearchingWeb by viewModel.isSearchingWeb.collectAsStateWithLifecycle()
+    val webSearchEnabled by viewModel.webSearchEnabled.collectAsStateWithLifecycle()
+    
+    val githubUsername by viewModel.githubUsername.collectAsStateWithLifecycle()
+    val githubRepo by viewModel.githubRepo.collectAsStateWithLifecycle()
+    val githubToken by viewModel.githubToken.collectAsStateWithLifecycle()
+    val githubPushStatus by viewModel.githubPushStatus.collectAsStateWithLifecycle()
+    val githubIsPushing by viewModel.githubIsPushing.collectAsStateWithLifecycle()
+
+    var activeSubTab by remember { mutableStateOf("workspace") } // "workspace", "search", "github"
+    
+    // Create Project dialog state
+    var showCreateProjectDialog by remember { mutableStateOf(false) }
+    var newProjectName by remember { mutableStateOf("") }
+    var newProjectDesc by remember { mutableStateOf("") }
+
+    // Project Dropdown state
+    var showProjectDropdown by remember { mutableStateOf(false) }
+
+    // New File state
+    var showNewFileDialog by remember { mutableStateOf(false) }
+    var newFilePath by remember { mutableStateOf("") }
+    var newFileContent by remember { mutableStateOf("") }
+
+    // Selected File view
+    var selectedFileForView by remember { mutableStateOf<ProjectFile?>(null) }
+    var isEditingSelectedFile by remember { mutableStateOf(false) }
+    var editingFileContent by remember { mutableStateOf("") }
+
+    // Web search state
+    var searchQuery by remember { mutableStateOf("") }
+
+    // GitHub Push dialog state
+    var showPushDialog by remember { mutableStateOf(false) }
+    var commitMessageInput by remember { mutableStateOf("Initial commit via BASE 2 CODE") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // --- PROJECTS HEADER SELECTOR ---
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = SlateSurface,
+            border = BorderStroke(1.dp, CodeBorder)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "PROJECT WORKSPACE",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = NeonCyan,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = currentProject?.name ?: "Loading Project...",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        )
+                    }
+
+                    Box {
+                        Button(
+                            onClick = { showProjectDropdown = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = NeonCyan,
+                                contentColor = CarbonDark
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("PROJECTS", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Select Project", tint = CarbonDark)
+                        }
+
+                        DropdownMenu(
+                            expanded = showProjectDropdown,
+                            onDismissRequest = { showProjectDropdown = false }
+                        ) {
+                            allProjects.forEach { project ->
+                                DropdownMenuItem(
+                                    text = { Text(project.name, fontWeight = FontWeight.SemiBold) },
+                                    onClick = {
+                                        viewModel.selectProject(project.id)
+                                        showProjectDropdown = false
+                                    }
+                                )
+                            }
+                            Divider()
+                            DropdownMenuItem(
+                                text = { Text("+ CREATE NEW PROJECT", color = NeonCyan, fontWeight = FontWeight.Bold) },
+                                onClick = {
+                                    showCreateProjectDialog = true
+                                    showProjectDropdown = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                if (currentProject != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = currentProject?.description ?: "",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- SUB TABS NAVIGATION ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(
+                "workspace" to "Workspace Explorer",
+                "search" to "Web Search",
+                "github" to "GitHub Sync"
+            ).forEach { (tabId, label) ->
+                val isSelected = activeSubTab == tabId
+                Button(
+                    onClick = { activeSubTab = tabId },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSelected) NeonCyan else CharcoalVariant,
+                        contentColor = if (isSelected) CarbonDark else TextPrimary
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- ACTIVE SUB TAB VIEW CONTENT ---
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            when (activeSubTab) {
+                "workspace" -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "WORKSPACE FILES",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = TextSecondary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+
+                            Button(
+                                onClick = {
+                                    newFilePath = ""
+                                    newFileContent = ""
+                                    showNewFileDialog = true
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = NeonCyan,
+                                    contentColor = CarbonDark
+                                ),
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "New File", modifier = Modifier.size(16.dp), tint = CarbonDark)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("New File", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Files grid or list
+                        Surface(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = SlateSurface,
+                            border = BorderStroke(1.dp, CodeBorder)
+                        ) {
+                            if (projectFiles.isEmpty()) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No files in project.\nClick 'New File' to write your first file.",
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                                    )
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize().padding(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(projectFiles) { file ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (selectedFileForView?.id == file.id) UserBubbleBg else CarbonDark)
+                                                .clickable {
+                                                    selectedFileForView = file
+                                                    editingFileContent = file.content
+                                                    isEditingSelectedFile = false
+                                                }
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Code,
+                                                    contentDescription = "Code file",
+                                                    tint = NeonCyan,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = file.path,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = TextPrimary,
+                                                        fontFamily = FontFamily.Monospace
+                                                    )
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = {
+                                                    viewModel.deleteFile(file.path)
+                                                    if (selectedFileForView?.id == file.id) {
+                                                        selectedFileForView = null
+                                                    }
+                                                },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Delete",
+                                                    tint = Color.Red,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Selected File Viewer/Editor
+                        Text(
+                            text = "FILE VIEWER & WRITER",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Surface(
+                            modifier = Modifier
+                                .weight(1.8f)
+                                .fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = PolishCodeBackground,
+                            border = BorderStroke(1.dp, CodeBorder)
+                        ) {
+                            if (selectedFileForView == null) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Select a file to view or edit.",
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = PolishCodeText, fontFamily = FontFamily.Monospace)
+                                    )
+                                }
+                            } else {
+                                Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = selectedFileForView?.path ?: "",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color.LightGray,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+
+                                        Row {
+                                            if (isEditingSelectedFile) {
+                                                IconButton(
+                                                    onClick = {
+                                                        viewModel.writeFile(selectedFileForView!!.path, editingFileContent)
+                                                        selectedFileForView = selectedFileForView!!.copy(content = editingFileContent)
+                                                        isEditingSelectedFile = false
+                                                        Toast.makeText(context, "Saved Successfully!", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Save, contentDescription = "Save", tint = Color.Green, modifier = Modifier.size(18.dp))
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                IconButton(
+                                                    onClick = {
+                                                        isEditingSelectedFile = false
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.Red, modifier = Modifier.size(18.dp))
+                                                }
+                                            } else {
+                                                IconButton(
+                                                    onClick = {
+                                                        isEditingSelectedFile = true
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Divider(color = Color.DarkGray)
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+                                        if (isEditingSelectedFile) {
+                                            BasicTextField(
+                                                value = editingFileContent,
+                                                onValueChange = { editingFileContent = it },
+                                                textStyle = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = PolishCodeText
+                                                ),
+                                                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                                            )
+                                        } else {
+                                            Text(
+                                                text = selectedFileForView?.content ?: "",
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = PolishCodeText
+                                                ),
+                                                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "search" -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = SlateSurface,
+                            border = BorderStroke(1.dp, CodeBorder)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "WEB SEARCH SETTINGS",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = NeonCyan,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1.5f)) {
+                                        Text(
+                                            text = "Auto search & inject context",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                        )
+                                        Text(
+                                            text = "Enables background internet lookups during chat queries.",
+                                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                                        )
+                                    }
+                                    Switch(
+                                        checked = webSearchEnabled,
+                                        onCheckedChange = { viewModel.toggleWebSearch(it) }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "ONLINE INTERACTIVE LOOKUP",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                label = { Text("Enter search keywords...", color = TextSecondary) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    focusedBorderColor = NeonCyan,
+                                    unfocusedBorderColor = CodeBorder
+                                )
+                            )
+
+                            Button(
+                                onClick = { viewModel.performWebSearch(searchQuery) },
+                                colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                                shape = RoundedCornerShape(8.dp),
+                                enabled = searchQuery.trim().isNotEmpty() && !isSearchingWeb
+                            ) {
+                                if (isSearchingWeb) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = CarbonDark, strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.Search, contentDescription = "Search", tint = CarbonDark)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Results
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = SlateSurface,
+                            border = BorderStroke(1.dp, CodeBorder)
+                        ) {
+                            if (webSearchResults.isEmpty()) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No search results displayed.\nType a query above to fetch online coding references.",
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                                    )
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize().padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(webSearchResults) { result ->
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(CarbonDark)
+                                                .padding(12.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Surface(
+                                                    color = UserBubbleBg,
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = result.source,
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            color = UserBubbleText,
+                                                            fontWeight = FontWeight.Bold
+                                                        ),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+
+                                                Text(
+                                                    text = result.url.take(30) + "...",
+                                                    style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary, fontFamily = FontFamily.Monospace)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.height(6.dp))
+
+                                            Text(
+                                                text = result.title,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = NeonCyan
+                                                )
+                                            )
+
+                                            Spacer(modifier = Modifier.height(4.dp))
+
+                                            Text(
+                                                text = result.snippet,
+                                                style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "github" -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = SlateSurface,
+                            border = BorderStroke(1.dp, CodeBorder)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "GITHUB CREDENTIALS",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = NeonCyan,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedTextField(
+                                    value = githubUsername,
+                                    onValueChange = { viewModel.updateGithubSettings(it, githubRepo, githubToken) },
+                                    label = { Text("GitHub Username", color = TextSecondary) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary,
+                                        focusedBorderColor = NeonCyan,
+                                        unfocusedBorderColor = CodeBorder
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = githubRepo,
+                                    onValueChange = { viewModel.updateGithubSettings(githubUsername, it, githubToken) },
+                                    label = { Text("Repository Name", color = TextSecondary) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary,
+                                        focusedBorderColor = NeonCyan,
+                                        unfocusedBorderColor = CodeBorder
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = githubToken,
+                                    onValueChange = { viewModel.updateGithubSettings(githubUsername, githubRepo, it) },
+                                    label = { Text("Personal Access Token (PAT)", color = TextSecondary) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary,
+                                        focusedBorderColor = NeonCyan,
+                                        unfocusedBorderColor = CodeBorder
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // GitHub push actions
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = SlateSurface,
+                            border = BorderStroke(1.dp, CodeBorder)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "PUSH PROJECT TO REMOTE BRANCH",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = NeonCyan,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Pushes all files in the current active workspace directly to your GitHub repository.",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Button(
+                                    onClick = { showPushDialog = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                                    shape = RoundedCornerShape(8.dp),
+                                    enabled = !githubIsPushing
+                                ) {
+                                    Icon(Icons.Default.Upload, contentDescription = "Push to GitHub", tint = CarbonDark)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("PUSH ALL FILES", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = CarbonDark))
+                                }
+
+                                if (githubPushStatus != null) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Surface(
+                                        color = CarbonDark,
+                                        shape = RoundedCornerShape(6.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                text = "PUSH PROGRESS LOG:",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = TextSecondary)
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = githubPushStatus ?: "",
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = if (githubPushStatus!!.contains("Success")) TerminalGreen else if (githubPushStatus!!.contains("Error")) Color.Red else TextPrimary
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- REALTIME TOOL OPERATION LOGS (FOOTER) ---
+        Text(
+            text = "REALTIME OPERATIONAL CONSOLE",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = TextSecondary,
+                fontWeight = FontWeight.Bold
+            )
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Surface(
+            modifier = Modifier
+                .height(100.dp)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            color = PolishCodeBackground,
+            border = BorderStroke(1.dp, CodeBorder)
+        ) {
+            val listState = rememberLazyListState()
+            LaunchedEffect(toolLogs.size) {
+                if (toolLogs.isNotEmpty()) {
+                    listState.animateScrollToItem(toolLogs.size - 1)
+                }
+            }
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(toolLogs) { log ->
+                    Text(
+                        text = log,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = if (log.contains("Error")) Color.Red else if (log.contains("WriteFile")) Color.Cyan else if (log.contains("GitHub")) Color.Yellow else PolishCodeText
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    // --- CREATE PROJECT DIALOG ---
+    if (showCreateProjectDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateProjectDialog = false },
+            title = { Text("Create New Workspace Project", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newProjectName,
+                        onValueChange = { newProjectName = it },
+                        label = { Text("Project Name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newProjectDesc,
+                        onValueChange = { newProjectDesc = it },
+                        label = { Text("Project Description") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newProjectName.trim().isNotEmpty()) {
+                            viewModel.createProject(newProjectName, newProjectDesc)
+                            showCreateProjectDialog = false
+                            newProjectName = ""
+                            newProjectDesc = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                ) {
+                    Text("CREATE", color = CarbonDark, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateProjectDialog = false }) {
+                    Text("CANCEL", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // --- NEW FILE DIALOG ---
+    if (showNewFileDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewFileDialog = false },
+            title = { Text("Write Workspace File", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newFilePath,
+                        onValueChange = { newFilePath = it },
+                        label = { Text("Relative File Path (e.g., src/App.kt)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newFileContent,
+                        onValueChange = { newFileContent = it },
+                        label = { Text("File Content") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 10
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newFilePath.trim().isNotEmpty()) {
+                            viewModel.writeFile(newFilePath, newFileContent)
+                            showNewFileDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                ) {
+                    Text("WRITE FILE", color = CarbonDark, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewFileDialog = false }) {
+                    Text("CANCEL", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // --- GITHUB COMMIT & PUSH DIALOG ---
+    if (showPushDialog) {
+        AlertDialog(
+            onDismissRequest = { showPushDialog = false },
+            title = { Text("Commit & Push Workspace", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = "Commit message:",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = commitMessageInput,
+                        onValueChange = { commitMessageInput = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.pushProjectToGitHub(commitMessageInput)
+                        showPushDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                ) {
+                    Text("COMMIT & PUSH", color = CarbonDark, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPushDialog = false }) {
+                    Text("CANCEL", color = TextSecondary)
+                }
+            }
+        )
     }
 }

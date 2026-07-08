@@ -3,10 +3,29 @@ package com.example.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
+@Entity(tableName = "projects")
+data class Project(
+    @PrimaryKey val id: String,
+    val name: String,
+    val description: String,
+    val createdAt: Long = System.currentTimeMillis(),
+    val lastModified: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "project_files")
+data class ProjectFile(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val projectId: String,
+    val path: String,
+    val content: String,
+    val lastUpdated: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "chat_sessions")
 data class ChatSession(
     @PrimaryKey val id: String,
     val title: String,
+    val projectId: String = "default", // Associated project ID
     val timestamp: Long = System.currentTimeMillis()
 )
 

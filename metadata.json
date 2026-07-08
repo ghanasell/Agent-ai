@@ -1,5 +1,5 @@
 {
-  "name": "DeepSeek Code",
+  "name": "BASE 2",
   "description": "An advanced AI Coding Assistant and debugger powered by DeepSeek AI.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

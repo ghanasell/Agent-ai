@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "DeepSeek Code"
+rootProject.name = "BASE 2"
 
 include(":app")

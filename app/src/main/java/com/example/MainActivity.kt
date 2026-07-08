@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -78,51 +79,77 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Terminal,
-                            contentDescription = "IDE Logo",
-                            tint = NeonCyan,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "DEEPSEEK CODE",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.5.sp,
-                                fontFamily = FontFamily.Monospace
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = NeonCyan, // Primary brand color
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Terminal,
+                                    contentDescription = "BASE 2 Logo",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "BASE 2",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.3).sp,
+                                    color = TextPrimary
+                                )
                             )
-                        )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 1.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(
+                                            if (apiKey.isNotEmpty()) TerminalGreen else ElectricAmber,
+                                            CircleShape
+                                        )
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = if (apiKey.isNotEmpty()) "BASE_2_AGENT: ONLINE" else "NO API KEY DETECTED",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        letterSpacing = 0.5.sp,
+                                        color = TextSecondary
+                                    )
+                                )
+                            }
+                        }
                     }
                 },
                 actions = {
-                    val context = LocalContext.current
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (apiKey.isNotEmpty()) TerminalGreen.copy(alpha = 0.15f) else ElectricAmber.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, if (apiKey.isNotEmpty()) TerminalGreen else ElectricAmber),
+                    // Simple Settings toggle instead of complex navigation tabs
+                    IconButton(
+                        onClick = {
+                            if (selectedTab == AppTab.SETTINGS) {
+                                viewModel.selectTab(AppTab.CHAT)
+                            } else {
+                                viewModel.selectTab(AppTab.SETTINGS)
+                            }
+                        },
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(if (apiKey.isNotEmpty()) TerminalGreen else ElectricAmber, RoundedCornerShape(4.dp))
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (apiKey.isNotEmpty()) "KEY_ONLINE" else "NO_KEY",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (apiKey.isNotEmpty()) TerminalGreen else ElectricAmber
-                                )
-                            )
-                        }
+                        Icon(
+                            imageVector = if (selectedTab == AppTab.SETTINGS) Icons.Default.ChatBubble else Icons.Default.Settings,
+                            contentDescription = "Toggle Settings",
+                            tint = TextSecondary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -130,69 +157,6 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
                     titleContentColor = TextPrimary
                 )
             )
-        },
-        bottomBar = {
-            NavigationBar(
-                containerColor = CarbonDark,
-                tonalElevation = 8.dp
-            ) {
-                NavigationBarItem(
-                    selected = selectedTab == AppTab.CHAT,
-                    onClick = { viewModel.selectTab(AppTab.CHAT) },
-                    icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = "Chat") },
-                    label = { Text("Chat") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = CarbonDark,
-                        selectedTextColor = NeonCyan,
-                        indicatorColor = NeonCyan,
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    ),
-                    modifier = Modifier.testTag("tab_chat")
-                )
-                NavigationBarItem(
-                    selected = selectedTab == AppTab.DEBUGGER,
-                    onClick = { viewModel.selectTab(AppTab.DEBUGGER) },
-                    icon = { Icon(Icons.Outlined.BugReport, contentDescription = "Debugger") },
-                    label = { Text("Debugger") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = CarbonDark,
-                        selectedTextColor = NeonCyan,
-                        indicatorColor = NeonCyan,
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    ),
-                    modifier = Modifier.testTag("tab_debugger")
-                )
-                NavigationBarItem(
-                    selected = selectedTab == AppTab.SNIPPETS,
-                    onClick = { viewModel.selectTab(AppTab.SNIPPETS) },
-                    icon = { Icon(Icons.Outlined.BookmarkBorder, contentDescription = "Snippets") },
-                    label = { Text("Snippets") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = CarbonDark,
-                        selectedTextColor = NeonCyan,
-                        indicatorColor = NeonCyan,
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    ),
-                    modifier = Modifier.testTag("tab_snippets")
-                )
-                NavigationBarItem(
-                    selected = selectedTab == AppTab.SETTINGS,
-                    onClick = { viewModel.selectTab(AppTab.SETTINGS) },
-                    icon = { Icon(Icons.Outlined.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = CarbonDark,
-                        selectedTextColor = NeonCyan,
-                        indicatorColor = NeonCyan,
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    ),
-                    modifier = Modifier.testTag("tab_settings")
-                )
-            }
         },
         contentWindowInsets = WindowInsets.safeDrawing
     ) { innerPadding ->
@@ -203,10 +167,8 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
-                AppTab.CHAT -> ChatScreen(viewModel = viewModel)
-                AppTab.DEBUGGER -> DebuggerScreen(viewModel = viewModel)
-                AppTab.SNIPPETS -> SnippetsScreen(viewModel = viewModel)
                 AppTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
+                else -> ChatScreen(viewModel = viewModel)
             }
         }
     }
@@ -386,7 +348,7 @@ fun ChatScreen(viewModel: AssistantViewModel) {
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "DeepSeek Coding Terminal",
+                        text = "BASE 2 Terminal",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary,
@@ -395,7 +357,7 @@ fun ChatScreen(viewModel: AssistantViewModel) {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Enter any coding prompt, ask for architecture, algorithms, or code blocks in Kotlin, Python, JS and beyond. Your history is stored safely locally.",
+                        text = "Enter any coding prompt to communicate with the BASE 2 agent. Ask for architecture, algorithms, or code blocks in Kotlin, Python, JS, and beyond. Your workspace is stored safely locally.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = TextSecondary,
                             textAlign = TextAlign.Center
@@ -580,24 +542,24 @@ fun ChatMessageItem(
                 .widthIn(max = 340.dp)
                 .clip(
                     RoundedCornerShape(
-                        topStart = 12.dp,
-                        topEnd = 12.dp,
-                        bottomStart = if (isUser) 12.dp else 0.dp,
-                        bottomEnd = if (isUser) 0.dp else 12.dp
+                        topStart = 16.dp,
+                        topEnd = 16.dp,
+                        bottomStart = if (isUser) 16.dp else 0.dp,
+                        bottomEnd = if (isUser) 0.dp else 16.dp
                     )
                 )
-                .background(if (isUser) SlateSurface else CharcoalVariant)
+                .background(if (isUser) UserBubbleBg else SlateSurface)
                 .border(
                     1.dp,
-                    if (isUser) CodeBorder else NeonCyan.copy(alpha = 0.3f),
+                    if (isUser) Color.Transparent else CodeBorder,
                     RoundedCornerShape(
-                        topStart = 12.dp,
-                        topEnd = 12.dp,
-                        bottomStart = if (isUser) 12.dp else 0.dp,
-                        bottomEnd = if (isUser) 0.dp else 12.dp
+                        topStart = 16.dp,
+                        topEnd = 16.dp,
+                        bottomStart = if (isUser) 16.dp else 0.dp,
+                        bottomEnd = if (isUser) 0.dp else 16.dp
                     )
                 )
-                .padding(12.dp)
+                .padding(14.dp)
         ) {
             segments.forEach { segment ->
                 if (segment.isCode) {
@@ -612,8 +574,8 @@ fun ChatMessageItem(
                     Text(
                         text = segment.content,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = TextPrimary,
-                            lineHeight = 20.sp
+                            color = if (isUser) UserBubbleText else TextPrimary,
+                            lineHeight = 22.sp
                         )
                     )
                 }
@@ -635,16 +597,16 @@ fun CodeBlockComponent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(CarbonDark)
-            .border(1.dp, CodeBorder, RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF1E1E1E))
+            .border(1.dp, Color(0xFF2D2D30), RoundedCornerShape(12.dp))
     ) {
         // Gutter-Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(CharcoalVariant)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .background(Color(0xFF2D2D30))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -652,7 +614,7 @@ fun CodeBlockComponent(
                 text = language.uppercase(),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = NeonCyan,
+                    color = Color(0xFF00E5FF), // Vibrant cyan accent inside code blocks
                     fontWeight = FontWeight.Bold
                 )
             )
@@ -669,7 +631,7 @@ fun CodeBlockComponent(
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
                         contentDescription = "Copy Code",
-                        tint = TextSecondary,
+                        tint = Color(0xFF9CA3AF),
                         modifier = Modifier.size(14.dp)
                     )
                 }
@@ -686,7 +648,7 @@ fun CodeBlockComponent(
                     Icon(
                         imageVector = if (isSaved) Icons.Default.Check else Icons.Default.Bookmark,
                         contentDescription = "Save Snippet",
-                        tint = if (isSaved) TerminalGreen else TextSecondary,
+                        tint = if (isSaved) Color(0xFF00E676) else Color(0xFF9CA3AF),
                         modifier = Modifier.size(14.dp)
                     )
                 }
@@ -698,7 +660,7 @@ fun CodeBlockComponent(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(12.dp)
+                .padding(14.dp)
         ) {
             val lines = code.trimEnd().split("\n")
             val lineNumbers = lines.indices.map { (it + 1).toString() }.joinToString("\n")
@@ -707,7 +669,7 @@ fun CodeBlockComponent(
                 text = lineNumbers,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = TextSecondary.copy(alpha = 0.5f),
+                    color = Color(0xFF858585),
                     textAlign = TextAlign.End
                 ),
                 modifier = Modifier.padding(end = 12.dp)
@@ -717,7 +679,7 @@ fun CodeBlockComponent(
                 text = code,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = TextPrimary
+                    color = Color(0xFFD4D4D4)
                 )
             )
         }

@@ -7,36 +7,31 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
 private val DarkColorScheme = darkColorScheme(
-    primary = NeonCyan,
-    onPrimary = CarbonDark,
-    secondary = TerminalGreen,
-    onSecondary = CarbonDark,
-    tertiary = ElectricAmber,
-    onTertiary = CarbonDark,
-    background = CarbonDark,
-    onBackground = TextPrimary,
-    surface = SlateSurface,
-    onSurface = TextPrimary,
-    surfaceVariant = CharcoalVariant,
-    onSurfaceVariant = TextSecondary,
-    outline = CodeBorder
+    primary = PolishPrimaryDark,
+    onPrimary = PolishOnPrimaryDark,
+    primaryContainer = PolishPrimaryContainerDark,
+    onPrimaryContainer = PolishOnPrimaryContainerDark,
+    background = PolishBackgroundDark,
+    onBackground = PolishOnBackgroundDark,
+    surface = PolishSurfaceDark,
+    onSurface = PolishOnSurfaceDark,
+    surfaceVariant = PolishSurfaceVariantDark,
+    onSurfaceVariant = PolishOnSurfaceVariantDark,
+    outline = PolishBorderDark
 )
 
-// We maintain the dark-terminal style for light mode as well to preserve the IDE/code aesthetic
 private val LightColorScheme = lightColorScheme(
-    primary = NeonCyan,
-    onPrimary = CarbonDark,
-    secondary = TerminalGreen,
-    onSecondary = CarbonDark,
-    tertiary = ElectricAmber,
-    onTertiary = CarbonDark,
-    background = CarbonDark,
-    onBackground = TextPrimary,
-    surface = SlateSurface,
-    onSurface = TextPrimary,
-    surfaceVariant = CharcoalVariant,
-    onSurfaceVariant = TextSecondary,
-    outline = CodeBorder
+    primary = PolishPrimary,
+    onPrimary = PolishOnPrimary,
+    primaryContainer = PolishPrimaryContainer,
+    onPrimaryContainer = PolishOnPrimaryContainer,
+    background = PolishBackground,
+    onBackground = PolishOnBackground,
+    surface = PolishSurface,
+    onSurface = PolishOnSurface,
+    surfaceVariant = PolishSurfaceVariant,
+    onSurfaceVariant = PolishOnSurfaceVariant,
+    outline = PolishBorder
 )
 
 @Composable

@@ -121,7 +121,7 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    text = if (apiKey.isNotEmpty()) "BASE_2_AGENT: ONLINE" else "NO API KEY DETECTED",
+                                    text = if (apiKey.isNotEmpty()) "BASE 2 Active" else "BASE 2 Inactive",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.ExtraBold,
@@ -134,7 +134,7 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
                     }
                 },
                 actions = {
-                    // Simple Settings toggle instead of complex navigation tabs
+                    // Settings toggle
                     IconButton(
                         onClick = {
                             if (selectedTab == AppTab.SETTINGS) {
@@ -158,6 +158,55 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
                 )
             )
         },
+        bottomBar = {
+            NavigationBar(
+                containerColor = CarbonDark,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    selected = selectedTab == AppTab.CHAT,
+                    onClick = { viewModel.selectTab(AppTab.CHAT) },
+                    icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = "Chat") },
+                    label = { Text("Chat") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = NeonCyan,
+                        indicatorColor = NeonCyan,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    ),
+                    modifier = Modifier.testTag("tab_chat")
+                )
+                NavigationBarItem(
+                    selected = selectedTab == AppTab.DEBUGGER,
+                    onClick = { viewModel.selectTab(AppTab.DEBUGGER) },
+                    icon = { Icon(Icons.Outlined.BugReport, contentDescription = "Debugger") },
+                    label = { Text("Debugger") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = NeonCyan,
+                        indicatorColor = NeonCyan,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    ),
+                    modifier = Modifier.testTag("tab_debugger")
+                )
+                NavigationBarItem(
+                    selected = selectedTab == AppTab.SNIPPETS,
+                    onClick = { viewModel.selectTab(AppTab.SNIPPETS) },
+                    icon = { Icon(Icons.Outlined.BookmarkBorder, contentDescription = "Snippets") },
+                    label = { Text("Snippets") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = NeonCyan,
+                        indicatorColor = NeonCyan,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    ),
+                    modifier = Modifier.testTag("tab_snippets")
+                )
+            }
+        },
         contentWindowInsets = WindowInsets.safeDrawing
     ) { innerPadding ->
         Box(
@@ -167,8 +216,10 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
+                AppTab.CHAT -> ChatScreen(viewModel = viewModel)
+                AppTab.DEBUGGER -> DebuggerScreen(viewModel = viewModel)
+                AppTab.SNIPPETS -> SnippetsScreen(viewModel = viewModel)
                 AppTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
-                else -> ChatScreen(viewModel = viewModel)
             }
         }
     }
@@ -348,7 +399,7 @@ fun ChatScreen(viewModel: AssistantViewModel) {
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "BASE 2 Terminal",
+                        text = "BASE 2 CODE",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary,
@@ -357,7 +408,7 @@ fun ChatScreen(viewModel: AssistantViewModel) {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Enter any coding prompt to communicate with the BASE 2 agent. Ask for architecture, algorithms, or code blocks in Kotlin, Python, JS, and beyond. Your workspace is stored safely locally.",
+                        text = "Enter any coding prompt to communicate with the BASE 2 CODE agent. Ask for architecture, algorithms, or code blocks in Kotlin, Python, JS, and beyond. Your workspace is stored safely locally.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = TextSecondary,
                             textAlign = TextAlign.Center

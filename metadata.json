@@ -1,6 +1,6 @@
 {
   "name": "BASE 2",
-  "description": "An advanced AI Coding Assistant and debugger powered by DeepSeek AI.",
+  "description": "An advanced AI Coding Assistant and debugger powered by BASE 2 CODE.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

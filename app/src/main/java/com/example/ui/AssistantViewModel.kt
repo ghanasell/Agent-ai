@@ -108,8 +108,17 @@ class AssistantViewModel(
     private val _debuggerResult = MutableStateFlow<String?>(null)
     val debuggerResult = _debuggerResult.asStateFlow()
 
-    private val _debuggerAction = MutableStateFlow(DebuggerAction.DEBUG)
+    private val _debuggerAction = MutableStateFlow(DebuggerAction.AUTO_CHECK)
     val debuggerAction = _debuggerAction.asStateFlow()
+
+    private val _localWarnings = MutableStateFlow<List<LocalWarning>>(emptyList())
+    val localWarnings = _localWarnings.asStateFlow()
+
+    private val _parsedIssues = MutableStateFlow<List<CodeIssue>>(emptyList())
+    val parsedIssues = _parsedIssues.asStateFlow()
+
+    private val _parsedFixedCode = MutableStateFlow<String?>(null)
+    val parsedFixedCode = _parsedFixedCode.asStateFlow()
 
     // Web Search Tool States
     private val _webSearchResults = MutableStateFlow<List<WebResult>>(emptyList())
@@ -170,10 +179,17 @@ class AssistantViewModel(
 
     fun setDebuggerCode(code: String) {
         _debuggerCode.value = code
+        _localWarnings.value = LocalCodeValidator.validate(code)
     }
 
     fun setDebuggerAction(action: DebuggerAction) {
         _debuggerAction.value = action
+    }
+
+    fun applyDebuggerFix(fixedCode: String) {
+        setDebuggerCode(fixedCode)
+        _parsedFixedCode.value = null
+        _parsedIssues.value = emptyList()
     }
 
     // Project Operations
@@ -383,12 +399,40 @@ class AssistantViewModel(
             DebuggerAction.DEBUG -> "Identify bugs, runtime errors, edge cases, and security vulnerabilities in this code and provide a fully fixed, optimized version:\n\n```\n$code\n```"
             DebuggerAction.OPTIMIZE -> "Optimize the performance, memory usage, and readability of the following code and explain your changes:\n\n```\n$code\n```"
             DebuggerAction.UNIT_TEST -> "Write comprehensive, robust unit tests for the following code (covering success scenarios, edge cases, and failure states):\n\n```\n$code\n```"
+            DebuggerAction.AUTO_CHECK -> """
+                You are an expert static analyzer and debugger. Analyze the following code for compilation errors, syntax mistakes, logical bugs, null-pointer exceptions, security issues, performance issues, or bad practices.
+
+                Output your findings STRICTLY using the [ISSUE] blocks and the [FIXED_CODE] block as defined below:
+
+                For each issue found, print:
+                [ISSUE]
+                Type: <Error | Warning | Suggestion>
+                Line: <Line number where issue starts or "Unknown">
+                Summary: <Short, high-level summary of the issue>
+                Explanation: <Clear explanation of what the bug is, why it occurs, and why it is problematic>
+                Fix: <Description of how to fix this issue>
+                [/ISSUE]
+
+                Finally, provide the complete, corrected, fully working, syntactically valid and compilation-ready code block:
+                [FIXED_CODE]
+                <your corrected code here>
+                [/FIXED_CODE]
+
+                If no issues are found, still output the [FIXED_CODE] containing the unchanged code, but you do not need to output any [ISSUE] blocks. Do not output any conversational introduction or conclusion outside of these blocks.
+
+                Here is the code to analyze:
+                ```
+                $code
+                ```
+            """.trimIndent()
         }
 
         viewModelScope.launch {
             _isGenerating.value = true
             _debuggerResult.value = null
             _errorMessage.value = null
+            _parsedIssues.value = emptyList()
+            _parsedFixedCode.value = null
             try {
                 val message = DeepSeekMessage(role = "user", content = prompt)
                 val response = repository.generateCode(
@@ -397,6 +441,11 @@ class AssistantViewModel(
                     messages = listOf(message)
                 )
                 _debuggerResult.value = response
+                
+                if (_debuggerAction.value == DebuggerAction.AUTO_CHECK) {
+                    _parsedIssues.value = CodeIssueParser.parseCodeIssues(response)
+                    _parsedFixedCode.value = CodeIssueParser.parseFixedCode(response)
+                }
             } catch (e: Exception) {
                 _errorMessage.value = e.localizedMessage ?: "Analysis failed."
                 _debuggerResult.value = "Error: Failed to perform analysis. Please verify your API key in Settings.\n\nDetails: ${e.message}"
@@ -629,7 +678,7 @@ enum class AppTab {
 }
 
 enum class DebuggerAction {
-    EXPLAIN, DEBUG, OPTIMIZE, UNIT_TEST
+    AUTO_CHECK, EXPLAIN, DEBUG, OPTIMIZE, UNIT_TEST
 }
 
 data class WebResult(

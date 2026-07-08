@@ -760,11 +760,18 @@ fun CodeBlockComponent(
 
 @Composable
 fun DebuggerScreen(viewModel: AssistantViewModel) {
+    val context = LocalContext.current
     val debuggerCode by viewModel.debuggerCode.collectAsStateWithLifecycle()
     val debuggerResult by viewModel.debuggerResult.collectAsStateWithLifecycle()
     val debuggerAction by viewModel.debuggerAction.collectAsStateWithLifecycle()
     val isGenerating by viewModel.isGenerating.collectAsStateWithLifecycle()
 
+    val localWarnings by viewModel.localWarnings.collectAsStateWithLifecycle()
+    val parsedIssues by viewModel.parsedIssues.collectAsStateWithLifecycle()
+    val parsedFixedCode by viewModel.parsedFixedCode.collectAsStateWithLifecycle()
+    val projectFiles by viewModel.projectFiles.collectAsStateWithLifecycle()
+
+    var showWorkspaceDropdown by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
     Column(
@@ -783,10 +790,57 @@ fun DebuggerScreen(viewModel: AssistantViewModel) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Submit a block of code to find bugs, optimize execution, get explanations, or generate tests.",
+            text = "Submit source code to locate syntactic & semantic defects, optimize, explain, or generate unit tests.",
             style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
         )
         Spacer(modifier = Modifier.height(16.dp))
+
+        // --- SOURCE CODE INPUT HEADER & LOAD FILE ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "SOURCE CODE INPUT",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = TextSecondary,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+
+            if (projectFiles.isNotEmpty()) {
+                Box {
+                    TextButton(
+                        onClick = { showWorkspaceDropdown = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = NeonCyan),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = "Load File", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("LOAD WORKSPACE FILE", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    DropdownMenu(
+                        expanded = showWorkspaceDropdown,
+                        onDismissRequest = { showWorkspaceDropdown = false }
+                    ) {
+                        projectFiles.forEach { file ->
+                            DropdownMenuItem(
+                                text = { Text(file.path, fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                                onClick = {
+                                    viewModel.setDebuggerCode(file.content)
+                                    showWorkspaceDropdown = false
+                                    Toast.makeText(context, "Loaded ${file.path}", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
 
         // Code Input Panel
         OutlinedTextField(
@@ -794,7 +848,7 @@ fun DebuggerScreen(viewModel: AssistantViewModel) {
             onValueChange = { viewModel.setDebuggerCode(it) },
             placeholder = {
                 Text(
-                    "Paste your source code here (e.g., function, full file, query)...",
+                    "Paste your source code here or select a workspace file above...",
                     color = TextSecondary,
                     fontFamily = FontFamily.Monospace
                 )
@@ -815,9 +869,87 @@ fun DebuggerScreen(viewModel: AssistantViewModel) {
             shape = RoundedCornerShape(12.dp)
         )
 
+        // --- REALTIME LINT WARNINGS PANEL ---
+        Spacer(modifier = Modifier.height(8.dp))
+        if (localWarnings.isNotEmpty()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0x20FF5252),
+                border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Warning, contentDescription = "Errors", tint = Color(0xFFFF5252), modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "REAL-TIME SYNTAX CHECK: ${localWarnings.size} ISSUE(S) DETECTED",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFF5252),
+                                fontFamily = FontFamily.Monospace
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    localWarnings.take(3).forEach { warning ->
+                        Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                            Text(
+                                text = if (warning.line != null) "• [Line ${warning.line}]: " else "• ",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFFF8A8A),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            Text(
+                                text = warning.message,
+                                style = MaterialTheme.typography.bodySmall.copy(color = Color.LightGray),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    if (localWarnings.size > 3) {
+                        Text(
+                            text = "... and ${localWarnings.size - 3} more issue(s)",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                color = Color.Gray,
+                                fontFamily = FontFamily.Monospace
+                            ),
+                            modifier = Modifier.padding(start = 12.dp, top = 2.dp)
+                        )
+                    }
+                }
+            }
+        } else if (debuggerCode.trim().isNotEmpty()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0x1500FFCC),
+                border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = "Healthy", tint = NeonCyan, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Real-time syntax check healthy.",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = NeonCyan,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Debugger Actions
+        // Debugger Actions Grid Layout
         Text(
             text = "CHOOSE ANALYSIS TYPE",
             style = MaterialTheme.typography.labelSmall.copy(
@@ -830,35 +962,45 @@ fun DebuggerScreen(viewModel: AssistantViewModel) {
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            DebuggerActionChip(
+                label = "AUTO-CHECK",
+                selected = debuggerAction == DebuggerAction.AUTO_CHECK,
+                onClick = { viewModel.setDebuggerAction(DebuggerAction.AUTO_CHECK) },
+                modifier = Modifier.weight(1f)
+            )
             DebuggerActionChip(
                 label = "EXPLAIN",
                 selected = debuggerAction == DebuggerAction.EXPLAIN,
                 onClick = { viewModel.setDebuggerAction(DebuggerAction.EXPLAIN) },
                 modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.width(6.dp))
             DebuggerActionChip(
                 label = "FIX BUGS",
                 selected = debuggerAction == DebuggerAction.DEBUG,
                 onClick = { viewModel.setDebuggerAction(DebuggerAction.DEBUG) },
                 modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.width(6.dp))
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             DebuggerActionChip(
                 label = "OPTIMIZE",
                 selected = debuggerAction == DebuggerAction.OPTIMIZE,
                 onClick = { viewModel.setDebuggerAction(DebuggerAction.OPTIMIZE) },
                 modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.width(6.dp))
             DebuggerActionChip(
                 label = "TESTS",
                 selected = debuggerAction == DebuggerAction.UNIT_TEST,
                 onClick = { viewModel.setDebuggerAction(DebuggerAction.UNIT_TEST) },
                 modifier = Modifier.weight(1f)
             )
+            Spacer(modifier = Modifier.weight(1f)) // Balancing item placeholder
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -902,52 +1044,261 @@ fun DebuggerScreen(viewModel: AssistantViewModel) {
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Results Section
+        // --- RESULTS AND INTERACTIVE DIAGNOSIS ---
         debuggerResult?.let { result ->
-            Text(
-                text = "ANALYSIS REPORT OUTPUT",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = NeonCyan,
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            Spacer(modifier = Modifier.height(24.dp))
 
-            val parsedSegments = remember(result) { parseMessageContent(result) }
+            if (debuggerAction == DebuggerAction.AUTO_CHECK) {
+                Text(
+                    text = "AUTO-CHECK DIAGNOSIS DASHBOARD",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = NeonCyan,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(SlateSurface)
-                    .border(1.dp, NeonCyan.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                    .padding(16.dp)
-            ) {
-                parsedSegments.forEach { segment ->
-                    if (segment.isCode) {
-                        CodeBlockComponent(
-                            code = segment.content,
-                            language = segment.language,
-                            onSaveSnippet = { title, desc, code, lang ->
-                                viewModel.saveCodeSnippet(title, desc, code, lang)
-                            }
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
+                if (parsedIssues.isEmpty()) {
+                    if (result.contains("[ISSUE]") || result.contains("Type:")) {
+                        // AI outputted some issues but format was slightly off, show raw/standard Markdown
+                        RawMarkdownResultCard(result, viewModel)
                     } else {
-                        Text(
-                            text = segment.content,
-                            style = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                            modifier = Modifier.padding(bottom = 10.dp)
-                        )
+                        // Show clean success card
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0x1500FFCC)),
+                            border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = "Clean", tint = NeonCyan, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("NO DEFECTS DETECTED", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = NeonCyan))
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "DeepSeek Analyzer scanned the code and found zero critical bugs, logical flaws, or syntax violations. The code conforms to modern standards.",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                                )
+                            }
+                        }
                     }
                 }
+
+                if (parsedIssues.isNotEmpty()) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        parsedIssues.forEach { issue ->
+                            val severityColor = when (issue.type.trim().uppercase()) {
+                                "ERROR" -> Color(0xFFFF5252)
+                                "WARNING" -> Color(0xFFFFB300)
+                                else -> Color(0xFF29B6F6)
+                            }
+                            
+                            val severityBg = severityColor.copy(alpha = 0.12f)
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                color = SlateSurface,
+                                border = BorderStroke(1.dp, severityColor.copy(alpha = 0.3f))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            color = severityBg,
+                                            shape = RoundedCornerShape(6.dp),
+                                            border = BorderStroke(1.dp, severityColor.copy(alpha = 0.4f))
+                                        ) {
+                                            Text(
+                                                text = issue.type.uppercase(),
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = severityColor,
+                                                    fontFamily = FontFamily.Monospace
+                                                ),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+
+                                        Text(
+                                            text = "LINE: ${issue.line}",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color = TextSecondary,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Text(
+                                        text = issue.summary,
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                    )
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Text(
+                                        text = issue.explanation,
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                                    )
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Divider(color = CodeBorder)
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Text(
+                                        text = "RECOMMENDED FIX:",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = NeonCyan,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = issue.fix,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            color = TerminalGreen,
+                                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Show Fixed Code Block
+                parsedFixedCode?.let { fixedCode ->
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Text(
+                        text = "CORRECTED SOURCE CODE",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = NeonCyan,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = PolishCodeBackground,
+                        border = BorderStroke(1.dp, CodeBorder)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "SUGGESTED CORRECTION",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = TextSecondary
+                                    )
+                                )
+
+                                Button(
+                                    onClick = { 
+                                        viewModel.applyDebuggerFix(fixedCode)
+                                        Toast.makeText(context, "Correction applied to input text!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Default.Check, contentDescription = "Apply Fix", modifier = Modifier.size(14.dp), tint = CarbonDark)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("APPLY FIX", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CarbonDark)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Divider(color = Color.DarkGray)
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                text = fixedCode,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = PolishCodeText
+                                ),
+                                modifier = Modifier.horizontalScroll(rememberScrollState())
+                            )
+                        }
+                    }
+                }
+
+                // Fallback to raw markdown if parsing returned empty lists/nulls
+                if (parsedIssues.isEmpty() && parsedFixedCode == null) {
+                    RawMarkdownResultCard(result, viewModel)
+                }
+            } else {
+                RawMarkdownResultCard(result, viewModel)
             }
         }
     }
 }
+
+@Composable
+fun RawMarkdownResultCard(result: String, viewModel: AssistantViewModel) {
+    Text(
+        text = "ANALYSIS REPORT OUTPUT",
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontFamily = FontFamily.Monospace,
+            color = NeonCyan,
+            fontWeight = FontWeight.Bold
+        ),
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+
+    val parsedSegments = remember(result) { parseMessageContent(result) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(SlateSurface)
+            .border(1.dp, NeonCyan.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+            .padding(16.dp)
+    ) {
+        parsedSegments.forEach { segment ->
+            if (segment.isCode) {
+                CodeBlockComponent(
+                    code = segment.content,
+                    language = segment.language,
+                    onSaveSnippet = { title, desc, code, lang ->
+                        viewModel.saveCodeSnippet(title, desc, code, lang)
+                    }
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            } else {
+                Text(
+                    text = segment.content,
+                    style = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
+            }
+        }
+    }
+}
+
 
 @Composable
 fun DebuggerActionChip(

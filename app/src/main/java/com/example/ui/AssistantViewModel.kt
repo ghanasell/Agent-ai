@@ -17,6 +17,7 @@ import com.example.data.db.ProjectFile
 import com.example.data.model.DeepSeekMessage
 import com.example.data.repository.AssistantRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -146,7 +147,35 @@ class AssistantViewModel(
     private val _githubIsPushing = MutableStateFlow(false)
     val githubIsPushing = _githubIsPushing.asStateFlow()
 
+    // Market Analysis and Simulation States
+    private val _forexAssets = MutableStateFlow<List<ForexAsset>>(emptyList())
+    val forexAssets = _forexAssets.asStateFlow()
+
+    private val _stockAssets = MutableStateFlow<List<StockAsset>>(emptyList())
+    val stockAssets = _stockAssets.asStateFlow()
+
+    private val _memeCoins = MutableStateFlow<List<MemeCoinAsset>>(emptyList())
+    val memeCoins = _memeCoins.asStateFlow()
+
+    private val _marketNotifications = MutableStateFlow<List<MarketNotification>>(emptyList())
+    val marketNotifications = _marketNotifications.asStateFlow()
+
+    private val _marketAlerts = MutableStateFlow<List<MarketAlertSubscription>>(emptyList())
+    val marketAlerts = _marketAlerts.asStateFlow()
+
+    private val _marketAnalysisResult = MutableStateFlow<String?>(null)
+    val marketAnalysisResult = _marketAnalysisResult.asStateFlow()
+
+    private val _isAnalyzingMarket = MutableStateFlow(false)
+    val isAnalyzingMarket = _isAnalyzingMarket.asStateFlow()
+
+    private val _selectedMarketAsset = MutableStateFlow<String?>(null)
+    val selectedMarketAsset = _selectedMarketAsset.asStateFlow()
+
     init {
+        initMarkets()
+        startMarketsSimulation()
+
         // Handle database load and auto-populate default project if empty
         viewModelScope.launch {
             repository.allProjects.collect { projects ->
@@ -671,10 +700,325 @@ class AssistantViewModel(
             Result.failure(e)
         }
     }
+
+    // --- MARKET ALERTS, SIMULATIONS, AND AI RESEARCH RESEARCH ---
+
+    private fun initMarkets() {
+        _forexAssets.value = listOf(
+            ForexAsset("EUR/USD", 1.0854, 0.12, listOf(1.0830, 1.0841, 1.0835, 1.0848, 1.0854), 1.0862, 1.0825),
+            ForexAsset("GBP/USD", 1.2742, -0.05, listOf(1.2755, 1.2748, 1.2750, 1.2739, 1.2742), 1.2765, 1.2732),
+            ForexAsset("USD/JPY", 156.45, 0.35, listOf(155.80, 156.10, 156.02, 156.32, 156.45), 156.70, 155.50),
+            ForexAsset("AUD/USD", 0.6652, -0.18, listOf(0.6670, 0.6665, 0.6658, 0.6650, 0.6652), 0.6675, 0.6645),
+            ForexAsset("USD/CAD", 1.3685, 0.08, listOf(1.3670, 1.3675, 1.3682, 1.3680, 1.3685), 1.3695, 1.3660)
+        )
+
+        _stockAssets.value = listOf(
+            StockAsset("TSLA", "Tesla Inc.", 178.50, 2.45, listOf(174.20, 175.50, 176.10, 177.80, 178.50), 180.10, 173.50),
+            StockAsset("NVDA", "NVIDIA Corp.", 920.12, 4.15, listOf(885.00, 895.00, 908.00, 912.00, 920.12), 925.00, 882.00),
+            StockAsset("AAPL", "Apple Inc.", 189.84, -0.32, listOf(190.50, 190.10, 189.90, 189.70, 189.84), 191.00, 189.20),
+            StockAsset("AMZN", "Amazon.com Inc.", 185.50, 1.12, listOf(183.10, 184.00, 184.50, 185.10, 185.50), 186.40, 182.80),
+            StockAsset("MSFT", "Microsoft Corp.", 421.90, 0.75, listOf(418.50, 419.80, 420.50, 421.10, 421.90), 423.00, 417.50)
+        )
+
+        _memeCoins.value = listOf(
+            MemeCoinAsset("PEPEAI", "PEPE AI", "Launched 5m ago", 0, 0.0000012, 0.00000145, 145000.0, 45000.0, 2.0, 2.0, false, true, 25, 0xFF4CAF50),
+            MemeCoinAsset("DOGE2", "Doge 2.0", "In 15s", 15, 0.00004, 0.00004, 0.0, 15000.0, 5.0, 5.0, false, false, 48, 0xFFFFC107),
+            MemeCoinAsset("SOLCAT", "Solana Cat", "In 45s", 45, 0.00008, 0.00008, 0.0, 8000.0, 0.0, 0.0, false, false, 12, 0xFF00E5FF),
+            MemeCoinAsset("SHIBLITE", "Shiba Lite", "Launched 12m ago", 0, 0.00000045, 0.00000038, 38000.0, 12000.0, 10.0, 10.0, true, true, 85, 0xFFFF5252),
+            MemeCoinAsset("MOONBOY", "Moon Boy", "In 120s", 120, 0.00015, 0.00015, 0.0, 35000.0, 3.0, 3.0, false, false, 35, 0xFF9C27B0)
+        )
+        
+        _marketAlerts.value = listOf(
+            MarketAlertSubscription(assetSymbol = "TSLA", alertType = "STOCK", condition = "ABOVE", targetValue = 180.0),
+            MarketAlertSubscription(assetSymbol = "DOGE2", alertType = "MEME", condition = "LAUNCH", targetValue = 0.0)
+        )
+    }
+
+    private fun startMarketsSimulation() {
+        viewModelScope.launch(Dispatchers.Default) {
+            val random = java.util.Random()
+            while (isActive) {
+                kotlinx.coroutines.delay(3000)
+                
+                // 1. Forex Updates
+                _forexAssets.value = _forexAssets.value.map { fx ->
+                    val change = (random.nextDouble() - 0.5) * 0.0008
+                    val newPrice = fx.price + change
+                    val newHistory = (fx.history + newPrice).takeLast(6)
+                    val percent = fx.changePercent + (change / fx.price) * 100
+                    ForexAsset(
+                        symbol = fx.symbol,
+                        price = newPrice,
+                        changePercent = percent,
+                        history = newHistory,
+                        high = maxOf(fx.high, newPrice),
+                        low = minOf(fx.low, newPrice)
+                    )
+                }
+
+                // 2. Stock Updates
+                _stockAssets.value = _stockAssets.value.map { stock ->
+                    val change = (random.nextDouble() - 0.49) * 0.45
+                    val newPrice = maxOf(1.0, stock.price + change)
+                    val newHistory = (stock.history + newPrice).takeLast(6)
+                    val percent = stock.changePercent + (change / stock.price) * 100
+                    StockAsset(
+                        symbol = stock.symbol,
+                        name = stock.name,
+                        price = newPrice,
+                        changePercent = percent,
+                        history = newHistory,
+                        high = maxOf(stock.high, newPrice),
+                        low = minOf(stock.low, newPrice)
+                    )
+                }
+
+                // 3. Meme Coin Countdown & Launch Updates
+                _memeCoins.value = _memeCoins.value.map { coin ->
+                    if (coin.isLaunched) {
+                        val isPump = random.nextDouble() > 0.45
+                        val factor = if (isPump) 0.05 + random.nextDouble() * 0.08 else -(0.04 + random.nextDouble() * 0.06)
+                        val newPrice = maxOf(0.00000001, coin.currentPrice * (1 + factor))
+                        val newMarketCap = coin.marketCap * (1 + factor)
+                        MemeCoinAsset(
+                            symbol = coin.symbol,
+                            name = coin.name,
+                            launchTime = coin.launchTime,
+                            countdownSeconds = 0,
+                            launchPrice = coin.launchPrice,
+                            currentPrice = newPrice,
+                            marketCap = newMarketCap,
+                            liquidity = coin.liquidity * (if (isPump) 1.02 else 0.99),
+                            buyTax = coin.buyTax,
+                            sellTax = coin.sellTax,
+                            honeypot = coin.honeypot,
+                            isLaunched = true,
+                            riskScore = coin.riskScore,
+                            logoColor = coin.logoColor
+                        )
+                    } else {
+                        val remaining = coin.countdownSeconds - 3
+                        if (remaining <= 0) {
+                            val launchTitle = "🚀 DEFI MEME LAUNCH RADAR: ${coin.name}"
+                            val launchMsg = "Newly detected token launch on DEX! Symbol: ${coin.symbol}. Initial Liquidity: \$${String.format("%,.0f", coin.liquidity)}. Contract safe-check completed. Risk score: ${coin.riskScore}/100."
+                            viewModelScope.launch(Dispatchers.Main) {
+                                addMarketNotification(launchTitle, launchMsg, "MEME")
+                            }
+
+                            MemeCoinAsset(
+                                symbol = coin.symbol,
+                                name = coin.name,
+                                launchTime = "LIVE NOW",
+                                countdownSeconds = 0,
+                                launchPrice = coin.launchPrice,
+                                currentPrice = coin.launchPrice,
+                                marketCap = coin.launchPrice * 100000000,
+                                liquidity = coin.liquidity,
+                                buyTax = coin.buyTax,
+                                sellTax = coin.sellTax,
+                                honeypot = coin.honeypot,
+                                isLaunched = true,
+                                riskScore = coin.riskScore,
+                                logoColor = coin.logoColor
+                            )
+                        } else {
+                            MemeCoinAsset(
+                                symbol = coin.symbol,
+                                name = coin.name,
+                                launchTime = "In ${remaining}s",
+                                countdownSeconds = remaining,
+                                launchPrice = coin.launchPrice,
+                                currentPrice = coin.launchPrice,
+                                marketCap = 0.0,
+                                liquidity = coin.liquidity,
+                                buyTax = coin.buyTax,
+                                sellTax = coin.sellTax,
+                                honeypot = coin.honeypot,
+                                isLaunched = false,
+                                riskScore = coin.riskScore,
+                                logoColor = coin.logoColor
+                            )
+                        }
+                    }
+                }
+
+                // 4. Alert Checks
+                val currentAlerts = _marketAlerts.value
+                val activeAlerts = currentAlerts.filter { it.isActive }
+                if (activeAlerts.isNotEmpty()) {
+                    val updatedAlerts = currentAlerts.toMutableList()
+                    activeAlerts.forEach { alert ->
+                        var isTriggered = false
+                        var triggerMsg = ""
+                        
+                        when (alert.alertType) {
+                            "FOREX" -> {
+                                val fx = _forexAssets.value.firstOrNull { it.symbol == alert.assetSymbol }
+                                if (fx != null) {
+                                    if (alert.condition == "ABOVE" && fx.price >= alert.targetValue) {
+                                        isTriggered = true
+                                        triggerMsg = "Forex alert: ${alert.assetSymbol} broke above limit ${alert.targetValue} (Current: ${String.format("%.4f", fx.price)})"
+                                    } else if (alert.condition == "BELOW" && fx.price <= alert.targetValue) {
+                                        isTriggered = true
+                                        triggerMsg = "Forex alert: ${alert.assetSymbol} broke below limit ${alert.targetValue} (Current: ${String.format("%.4f", fx.price)})"
+                                    }
+                                }
+                            }
+                            "STOCK" -> {
+                                val st = _stockAssets.value.firstOrNull { it.symbol == alert.assetSymbol }
+                                if (st != null) {
+                                    if (alert.condition == "ABOVE" && st.price >= alert.targetValue) {
+                                        isTriggered = true
+                                        triggerMsg = "Stock alert: ${alert.assetSymbol} rose above target \$${alert.targetValue} (Current: \$${String.format("%.2f", st.price)})"
+                                    } else if (alert.condition == "BELOW" && st.price <= alert.targetValue) {
+                                        isTriggered = true
+                                        triggerMsg = "Stock alert: ${alert.assetSymbol} fell below target \$${alert.targetValue} (Current: \$${String.format("%.2f", st.price)})"
+                                    }
+                                }
+                            }
+                            "MEME" -> {
+                                val coin = _memeCoins.value.firstOrNull { it.symbol == alert.assetSymbol }
+                                if (coin != null && coin.isLaunched) {
+                                    val original = currentAlerts.firstOrNull { it.id == alert.id }
+                                    if (original != null && original.isActive) {
+                                        isTriggered = true
+                                        triggerMsg = "Meme Coin Alert: ${coin.name} (${coin.symbol}) has officially launched! Current price: \$${String.format("%.6f", coin.currentPrice)} with \$${String.format("%,.0f", coin.liquidity)} locked liquidity."
+                                    }
+                                }
+                            }
+                        }
+
+                        if (isTriggered) {
+                            viewModelScope.launch(Dispatchers.Main) {
+                                addMarketNotification("🚨 MARKET ALERT TRIGGERED", triggerMsg, alert.alertType)
+                            }
+                            val idx = updatedAlerts.indexOfFirst { it.id == alert.id }
+                            if (idx != -1) {
+                                updatedAlerts[idx] = alert.copy(isActive = false)
+                            }
+                        }
+                    }
+                    _marketAlerts.value = updatedAlerts
+                }
+            }
+        }
+    }
+
+    fun addMarketNotification(title: String, message: String, type: String) {
+        val notification = MarketNotification(title = title, message = message, type = type)
+        _marketNotifications.value = listOf(notification) + _marketNotifications.value
+
+        try {
+            val context = getApplication<Application>().applicationContext
+            val notificationManager = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            val channelId = "market_alerts_channel"
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val channel = android.app.NotificationChannel(
+                    channelId,
+                    "Market Alerts",
+                    android.app.NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Real-time Alerts for Forex, Meme Coins, and Stocks"
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+
+            val builder = androidx.core.app.NotificationCompat.Builder(context, channelId)
+                .setSmallIcon(android.R.drawable.stat_notify_chat)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+
+            notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun addAlertSubscription(symbol: String, type: String, condition: String, target: Double) {
+        val alert = MarketAlertSubscription(
+            assetSymbol = symbol,
+            alertType = type,
+            condition = condition,
+            targetValue = target
+        )
+        _marketAlerts.value = _marketAlerts.value + alert
+    }
+
+    fun deleteAlertSubscription(id: String) {
+        _marketAlerts.value = _marketAlerts.value.filter { it.id != id }
+    }
+
+    fun clearMarketAnalysis() {
+        _marketAnalysisResult.value = null
+        _selectedMarketAsset.value = null
+    }
+
+    fun triggerMarketResearch(assetType: String, symbol: String, assetName: String = "") {
+        val prompt = when (assetType.uppercase()) {
+            "FOREX" -> """
+                You are an elite quantitative forex analyst and currency trader. Conduct a high-probability technical and fundamental analysis for the forex pair $symbol.
+                Include:
+                1. Market Sentiment & Trend Bias (Bullish/Bearish/Neutral)
+                2. Key Support & Resistance Levels (S1/S2/R1/R2)
+                3. Technical Indicators (RSI, MACD, Moving Averages recommendation)
+                4. Key Volatility Drivers & Macroeconomic Factors (Central bank rates, inflation, employment data)
+                5. Recommendation & Risk Management strategy.
+                
+                Respond in clean, professional markdown with high-impact details.
+            """.trimIndent()
+            "STOCK" -> """
+                You are an expert equity research analyst and Wall Street trader. Conduct a professional, real-time-focused technical and fundamental analysis for the stock $symbol ($assetName).
+                Include:
+                1. Fundamental Analysis Overview (Growth drivers, recent earnings impact, valuation)
+                2. Technical Pattern Analysis (Moving averages crossover, relative strength, volume analysis)
+                3. Market Consensus & Price Target (Underpriced, fairly valued, overpriced)
+                4. Macro-Economic & Sector Tailwinds / Headwinds
+                5. Buy / Sell / Hold Technical Rating & Risk Management plan.
+                
+                Respond in clean, professional markdown.
+            """.trimIndent()
+            "MEME" -> """
+                You are a degens and blockchain forensics analyst specialized in decentralized exchanges (DEX) and meme coins. Conduct a comprehensive security and momentum audit on the meme coin $symbol ($assetName).
+                Include:
+                1. Security/Smart Contract Risk Assessment (Honeypot risk, rugpull likelihood, developer wallet allocation, ownership status)
+                2. Liquidity Pool Analysis (Locked vs unlocked percentage, liquidity-to-market-cap ratio)
+                3. Volatility Forecast (Is this a pump-and-dump, slow rug, or actual viral potential?)
+                4. On-chain Activity & Social Hype Score
+                5. High-Risk Degens Strategy & Safety Advice (e.g. Stop-loss, maximum position size recommendation).
+                
+                Respond in clean, professional markdown with a serious warning about the high risk of meme coin investing.
+            """.trimIndent()
+            else -> "Analyze the financial asset $symbol and provide technical advice."
+        }
+
+        _selectedMarketAsset.value = "$symbol ($assetType)"
+        _isAnalyzingMarket.value = true
+        _marketAnalysisResult.value = null
+
+        viewModelScope.launch {
+            try {
+                val message = DeepSeekMessage(role = "user", content = prompt)
+                val response = repository.generateCode(
+                    apiKey = _apiKey.value,
+                    model = _selectedModel.value,
+                    messages = listOf(message),
+                    temperature = 0.5
+                )
+                _marketAnalysisResult.value = response
+            } catch (e: Exception) {
+                _marketAnalysisResult.value = "Error performing AI Market Analysis: ${e.message}\n\nPlease check your DeepSeek API Key in the Settings tab."
+            } finally {
+                _isAnalyzingMarket.value = false
+            }
+        }
+    }
 }
 
 enum class AppTab {
-    CHAT, DEBUGGER, SNIPPETS, TOOLS, SETTINGS
+    CHAT, DEBUGGER, MARKETS, SNIPPETS, TOOLS, SETTINGS
 }
 
 enum class DebuggerAction {

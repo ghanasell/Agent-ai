@@ -208,6 +208,20 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
                     modifier = Modifier.testTag("tab_snippets")
                 )
                 NavigationBarItem(
+                    selected = selectedTab == AppTab.MARKETS,
+                    onClick = { viewModel.selectTab(AppTab.MARKETS) },
+                    icon = { Icon(Icons.Default.ShowChart, contentDescription = "Markets") },
+                    label = { Text("Markets") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = NeonCyan,
+                        indicatorColor = NeonCyan,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    ),
+                    modifier = Modifier.testTag("tab_markets")
+                )
+                NavigationBarItem(
                     selected = selectedTab == AppTab.TOOLS,
                     onClick = { viewModel.selectTab(AppTab.TOOLS) },
                     icon = { Icon(Icons.Default.Build, contentDescription = "Workspace") },
@@ -234,6 +248,7 @@ fun DashboardScreen(viewModel: AssistantViewModel) {
             when (selectedTab) {
                 AppTab.CHAT -> ChatScreen(viewModel = viewModel)
                 AppTab.DEBUGGER -> DebuggerScreen(viewModel = viewModel)
+                AppTab.MARKETS -> MarketsScreen(viewModel = viewModel)
                 AppTab.SNIPPETS -> SnippetsScreen(viewModel = viewModel)
                 AppTab.TOOLS -> ToolsScreen(viewModel = viewModel)
                 AppTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
